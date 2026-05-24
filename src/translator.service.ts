@@ -20,7 +20,10 @@ const POLL_INTERVAL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class TranslatorService implements OnModuleInit, OnModuleDestroy {
-  private translations: Record<string, Record<string, string>> = {};
+  private translations: Record<
+    string,
+    Record<string, Record<string, string>>
+  > = {};
   private pollTimer?: NodeJS.Timeout;
   private isLoading = false;
   private readonly logger = new Logger(TranslatorService.name);
@@ -44,13 +47,18 @@ export class TranslatorService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async translate(
+  translate(
     namespace: string,
     key: string,
     placeholders?: TranslationPlaceholders,
-  ): Promise<string> {
+    locale?: string,
+  ): string {
+    const resolvedLocale = locale ?? this.options.locale;
     const namespaceTranslations = this.translations[namespace];
-    const text = namespaceTranslations?.[key] ?? key;
+    const localeTranslations = namespaceTranslations
+      ? this.resolveLocaleTranslations(namespaceTranslations, resolvedLocale)
+      : undefined;
+    const text = localeTranslations?.[key] ?? key;
 
     if (!placeholders) {
       return text;
@@ -134,17 +142,34 @@ export class TranslatorService implements OnModuleInit, OnModuleDestroy {
 
   private buildTranslations(
     data: OwnlateTranslationsResponse,
-  ): Record<string, Record<string, string>> {
-    const locale = this.options.locale ?? "en";
+  ): Record<string, Record<string, Record<string, string>>> {
     const filesMap = this.options.filesMap ?? {};
-    const result: Record<string, Record<string, string>> = {};
+    const result: Record<string, Record<string, Record<string, string>>> = {};
 
     for (const [fileName, languages] of Object.entries(data)) {
-      const namespace =
-        filesMap[fileName] ?? fileName.replace(/\.json$/, "");
-      result[namespace] = languages[locale] ?? {};
+      const namespace = filesMap[fileName] ?? fileName.replace(/\.json$/, "");
+      result[namespace] = languages;
     }
 
     return result;
+  }
+
+  private resolveLocaleTranslations(
+    languages: Record<string, Record<string, string>>,
+    locale?: string,
+  ): Record<string, string> {
+    if (locale) {
+      const localeTranslations = languages[locale];
+      if (localeTranslations) {
+        return localeTranslations;
+      }
+    }
+
+    const [firstLocale] = Object.keys(languages);
+    if (!firstLocale) {
+      return {};
+    }
+
+    return languages[firstLocale];
   }
 }

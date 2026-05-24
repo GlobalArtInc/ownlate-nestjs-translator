@@ -1,6 +1,6 @@
 export interface TranslatorModuleOptions {
-  apiKey?: string;
   projectId: string;
+  apiKey?: string;
   locale?: string;
   filesMap?: Record<string, string>;
 }
