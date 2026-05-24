@@ -21,10 +21,8 @@ const RETRY_INTERVAL_MS = 5 * 1000;
 
 @Injectable()
 export class TranslatorService implements OnModuleInit, OnModuleDestroy {
-  private translations: Record<
-    string,
-    Record<string, Record<string, string>>
-  > = {};
+  private translations: Record<string, Record<string, Record<string, string>>> =
+    {};
   private pollTimer?: NodeJS.Timeout;
   private retryTimer?: NodeJS.Timeout;
   private isLoading = false;
