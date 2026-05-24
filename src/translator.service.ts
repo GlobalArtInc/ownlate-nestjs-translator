@@ -17,6 +17,7 @@ import type {
 const TRANSLATIONS_API_URL =
   "https://api.ownlate.com/public/v1/segments/translations-map";
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
+const RETRY_INTERVAL_MS = 5 * 1000;
 
 @Injectable()
 export class TranslatorService implements OnModuleInit, OnModuleDestroy {
@@ -25,6 +26,7 @@ export class TranslatorService implements OnModuleInit, OnModuleDestroy {
     Record<string, Record<string, string>>
   > = {};
   private pollTimer?: NodeJS.Timeout;
+  private retryTimer?: NodeJS.Timeout;
   private isLoading = false;
   private readonly logger = new Logger(TranslatorService.name);
 
@@ -34,10 +36,10 @@ export class TranslatorService implements OnModuleInit, OnModuleDestroy {
     private readonly httpService: HttpService,
   ) {}
 
-  async onModuleInit(): Promise<void> {
-    await this.loadTranslations();
+  onModuleInit(): void {
+    void this.loadTranslationsSafely();
     this.pollTimer = setInterval(() => {
-      void this.refreshTranslations();
+      void this.loadTranslationsSafely();
     }, POLL_INTERVAL_MS);
   }
 
@@ -45,6 +47,8 @@ export class TranslatorService implements OnModuleInit, OnModuleDestroy {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
     }
+
+    this.clearRetryTimer();
   }
 
   translate(
@@ -74,18 +78,40 @@ export class TranslatorService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  private async refreshTranslations(): Promise<void> {
+  private async loadTranslationsSafely(): Promise<void> {
     if (this.isLoading) {
       return;
     }
 
     try {
       await this.loadTranslations();
+      this.clearRetryTimer();
     } catch (error) {
       this.logger.error(
-        `Failed to refresh translations: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to load translations: ${error instanceof Error ? error.message : String(error)}`,
       );
+      this.scheduleRetry();
     }
+  }
+
+  private scheduleRetry(): void {
+    if (this.retryTimer) {
+      return;
+    }
+
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = undefined;
+      void this.loadTranslationsSafely();
+    }, RETRY_INTERVAL_MS);
+  }
+
+  private clearRetryTimer(): void {
+    if (!this.retryTimer) {
+      return;
+    }
+
+    clearTimeout(this.retryTimer);
+    this.retryTimer = undefined;
   }
 
   private async loadTranslations(): Promise<void> {
